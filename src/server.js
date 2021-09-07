@@ -12,6 +12,21 @@ io.on('connection', socket => {
     socket.on('custom-event', (string1, string2, number) => {
         console.log(string1 + ' + ' + string2 + ' = ' + number);
     })
+
+    socket.on('joined', (id, cb) =>{
+        console.log(`Player ${id} successfully joined the game!!!!`);
+        cb(socket.id);
+    })
+
+    socket.on('disconnect', socket => {
+        console.log(`A player has disconnected`);
+    })
+
+    socket.on('join-room', (room, cb) => {
+        socket.join(room);
+        socket.to(room).emit('joined');
+        cb();
+    })
 })
 
 
