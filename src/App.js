@@ -9,21 +9,13 @@ export default class App extends React.Component{
         return (
             <Router>
                 <div className="App">
-                         <Switch>
-                       <Route exact path ='/' component={Thirteen} />
-                           <Route exact path='/room' component={test} />
-                           </Switch>
+                        <Switch>
+                           <Route exact path ='/' component={Thirteen} />
+                           <Route exact path='/room=:id' component={Game} />
+                        </Switch>
                 </div>
             </Router>
         );
 
     }
-}
-
-function test(){
-    return(
-        <div>
-            <h1>TEST</h1>
-                </div>
-    );
 }

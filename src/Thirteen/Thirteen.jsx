@@ -1,11 +1,14 @@
 import React from 'react';
 import { io } from 'socket.io-client';
-import Game from './Game';
+
+//Homepage
 
 const socket = io('http://localhost:4000');
 socket.on('connect', () => {
     console.log(`Your id is: ${socket.id}`);
 });
+
+//Don't need
 socket.on('joined', () => {
     console.log('A new user joined');
 });
@@ -33,11 +36,17 @@ export default class Thirteen extends React.Component{
     }
 
     handleSubmit(event){
-        socket.emit('join-room', this.state.room, () => {
-            console.log(`Joined room: ${this.state.room}`);
+        //Redirects user to the game room
+        socket.emit('join-room', this.state.room, (error) => {
+            if(error){
+                alert('That room is Full! Please choose another room');
+            }
+            else{
+                this.props.history.push(`/room=${this.state.room}`);
+            }
         });
-        event.preventDefault();
 
+       event.preventDefault();
     }
 
     render(){
@@ -50,7 +59,6 @@ export default class Thirteen extends React.Component{
                      </label>
                      <input type='submit' value='Join' />
                 </form>
-                <Game></Game>
             </div>
         );
     }
