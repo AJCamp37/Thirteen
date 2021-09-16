@@ -6,7 +6,7 @@ import cardDeck from '../utils/cardDeck';
 const Game = (props) => {
 
     const [room, setRoom] = useState();
-    const [num, setNum] = useState();
+    const [player, setPlayer] = useState();
     const [users, setUsers] = useState([]);
     const [gameOver, setGameOver] = useState(false);
     const [player1Deck, setP1Deck] = useState([]);
@@ -18,14 +18,35 @@ const Game = (props) => {
         socket.on('set-room', (room, users)=> {
             setRoom(room);
             setUsers(users)
-            //////////////////////////////////////////////
-            //Make it so if the user is the 1st in the list then he shuffles the decks
-            //and then emits the data so every other player is synced as well
-            //They each know their own socket.id so use that 
-        })
-        //Start up the game data
-        socket.emit('init', {room, users});
-    });
+    
+            for(var i = 0; i < users.length; i++){
+                if(socket.id === users[i].id){
+                    setPlayer(users[i].name);
+                }
+            }
+
+            //If they're player one they shuffle and pass out deck
+            if(socket.id === users[0].id){
+                const shuffledCards = shuffle(cardDeck);
+
+                const p1 = shuffledCards.splice(0,13);
+                const p2 = shuffledCards.splice(0,13);
+                const p3 = shuffledCards.splice(0,13);
+                const p4 = shuffledCards.splice(0,13);
+
+                socket.emit('init-data', {p1: p1, p2: p2, p3: p3, p4: p4});
+            }
+        });
+
+        socket.on('init-game', (data) => {
+            setP1Deck(data.p1);
+            setP2Deck(data.p2);
+            setP3Deck(data.p3);
+            setP4Deck(data.p4);
+        });
+
+    }
+ );
     /*
     constructor(props){
         super(props);
@@ -42,19 +63,7 @@ const Game = (props) => {
     */
 
     useEffect(() => {
-        const shuffledCards = shuffle(cardDeck);
-
-        const deck1 = shuffledCards.splice(0, 13);
-        const deck2 = shuffledCards.splice(0, 13);
-        const deck3 = shuffledCards.splice(0, 13);
-        const deck4 = shuffledCards.splice(0, 13);
-
-        
-        setP1Deck(deck1);
-        setP2Deck(deck1);
-        setP3Deck(deck1);
-        setP4Deck(deck1);
-        
+                
     }, [])
 
     return(
