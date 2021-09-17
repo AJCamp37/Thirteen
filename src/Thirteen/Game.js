@@ -16,13 +16,15 @@ const Game = (props) => {
     const [player4Deck, setP4Deck] = useState([]);
 
     //split these into different useEffects so we get less unneccesary console.logs!!!
+    
     useEffect(() => {
         socket.on('initGame', (data) => {
             setUsers(data.users);
             setRoom(data.room);
-            console.log('initgame called')
         });
+    }, []);
 
+    useEffect(() => {
         socket.on('start-game', (users)=> {
             setUsers(users);
             for(var i = 0; i < users.length; i++){
@@ -31,7 +33,6 @@ const Game = (props) => {
                 }
             }
 
-            //If they're player one they shuffle and pass out deck
             if(socket.id === users[0].id){
                 const shuffledCards = shuffle(cardDeck);
 
@@ -52,45 +53,37 @@ const Game = (props) => {
             setGameStart(true);
         });
 
-    }, [users, room, player1Deck, player2Deck, player3Deck, player4Deck, gameStart]);
-    /*
-    constructor(props){
-        super(props);
-
-        this.state = {
-            gameOver: false,
-            winner: [],
-            decks: [[]],
-            turn: 1,
-            round: [],
-            out: [],
-       };
-    }
-    */
-
+    }, []);
+    
+    //Put your functions to do validation and such here
+    ////////////////////////////////////////////////////
     if(gameStart){
 
-        let deck = [];
-        if(player === 'Player 1'){
+    let deck = [];
+    const num = player.charAt(7);
+    
+    switch (num){
+        case '1': 
             deck = player1Deck;
-        }
-        else if(player === 'Player 2'){
+            break;
+        case '2': 
             deck = player2Deck;
-        }
-        else if(player === 'Player 3'){
+            break;
+        case '3':
             deck = player3Deck;
-        }
-        else{
+            break;
+        case '4': 
             deck = player4Deck;
-        }
+            break;
+    }
 
-        let p = [];
-        for(var i = 0; i < deck.length; i++){
-            p.push(<li>{deck[i]}</li>);
-        }
         return(
             <div>
-                <h1>Need to show persons cards!</h1>
+                {
+                    deck.map((value, idx) => (
+                        <button className='boi' key={idx}>{value}</button>
+                    ))
+                }
             </div>
 
         );
