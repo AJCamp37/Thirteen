@@ -5,6 +5,7 @@ import cardDeck from '../utils/cardDeck';
 
 const Game = (props) => {
 
+    const [gameStart, setGameStart] = useState(false);
     const [room, setRoom] = useState();
     const [player, setPlayer] = useState();
     const [users, setUsers] = useState([]);
@@ -14,11 +15,16 @@ const Game = (props) => {
     const [player3Deck, setP3Deck] = useState([]);
     const [player4Deck, setP4Deck] = useState([]);
 
+    //split these into different useEffects so we get less unneccesary console.logs!!!
     useEffect(() => {
-        socket.on('set-room', (room, users)=> {
-            setRoom(room);
-            setUsers(users)
-    
+        socket.on('initGame', (data) => {
+            setUsers(data.users);
+            setRoom(data.room);
+            console.log('initgame called')
+        });
+
+        socket.on('start-game', (users)=> {
+            setUsers(users);
             for(var i = 0; i < users.length; i++){
                 if(socket.id === users[i].id){
                     setPlayer(users[i].name);
@@ -43,10 +49,10 @@ const Game = (props) => {
             setP2Deck(data.p2);
             setP3Deck(data.p3);
             setP4Deck(data.p4);
+            setGameStart(true);
         });
 
-    }
- );
+    }, [users, room, player1Deck, player2Deck, player3Deck, player4Deck, gameStart]);
     /*
     constructor(props){
         super(props);
@@ -62,45 +68,57 @@ const Game = (props) => {
     }
     */
 
-    useEffect(() => {
-                
-    }, [])
+    if(gameStart){
 
-    return(
-        <div>
-            <h1>Game Room</h1>
-                <button onClick={() => socket.emit('start')}>START</button>
-        </div>
-    );
+        let deck = [];
+        if(player === 'Player 1'){
+            deck = player1Deck;
+        }
+        else if(player === 'Player 2'){
+            deck = player2Deck;
+        }
+        else if(player === 'Player 3'){
+            deck = player3Deck;
+        }
+        else{
+            deck = player4Deck;
+        }
 
-//Do something like this for your conditional rendering
-    /*
-    let x = 1;
-    if(x){
+        let p = [];
+        for(var i = 0; i < deck.length; i++){
+            p.push(<li>{deck[i]}</li>);
+        }
         return(
-            <Test />
+            <div>
+                <h1>Need to show persons cards!</h1>
+            </div>
+
         );
     }
     else{
         return(
-            <Test2 />
+            <div>
+                {
+                    (users.length === 0) ? <Others/> : ((users[0].id === socket.id) ? <Player1/> : <Others/>)
+                }
+            </div>
         );
     }
-    */
 }
 
-function Test(){
+function Player1(){
     return(
         <div>
-            <h1>Test 1</h1>
+            <h1>Start Game?</h1>
+                <button onClick={() => socket.emit('start')}>START</button>
         </div>
     );
 } 
 
-function Test2(){
+function Others(){
     return(
         <div>
-            <h1>Test 2</h1>
+            <h1>Waiting for more players</h1>
         </div>
     );
 }
