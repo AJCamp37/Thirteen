@@ -46,6 +46,10 @@ io.on('connection', socket => {
         const room = getUser(socket.id).room;
         io.to(room).emit('init-game', data);
     });
+    socket.on('updateGame', (data) => {
+        const room = getUser(socket.id).room;
+        io.to(room).emit('updateGame', data);
+    });
 });
 
 httpServer.listen(4000, () => console.log(`Listening on port 4000`));

@@ -1,22 +1,93 @@
+import {DragDropContext, Droppable, Draggable} from 'react-beautiful-dnd';
 import { useEffect, useState }from 'react';
 import { socket } from './Thirteen';
 import shuffle from '../utils/shuffle';
 import cardDeck from '../utils/cardDeck';
+import './Game.css';
+
+//Returns an updated currentPlay array
+const handlePlay = (card, play) => {
+    //If the array is empty
+    if(play.length === 0){
+        const temp = [card];
+        return temp;
+    }//If the card is already in the array
+    else if(play.indexOf(card) !== -1){
+        const index = play.indexOf(card);
+        play.splice(index, 1);
+    }//If the card is not already in the array
+    else{
+        play.push(card);
+    }
+    return play;
+} 
+
+//Returns the index for the player's deck
+const getDeck = (playerName) => {
+    var value;
+    const num = playerName.charAt(7);
+    
+    switch (num){
+        case '1': 
+            value = 0;
+            break;
+        case '2': 
+            value = 1;
+            break;
+        case '3':
+            value = 2;
+            break;
+        case '4': 
+            value = 3;
+            break;
+    }               
+    return value;
+}
+
+//Return the player whose turn is next
+///This will not work if there aren't 4 players need to fix it////////
+const getNext = (turn, skip) => {
+    const players = ['Player 1', 'Player 2', 'Player 3', 'Player 4'];
+    if(skip.length !== 0){
+        var index;
+        for(var i = 0; i < players.length; i++){
+            index = skip.indexOf(players[i]);
+            if(index !== -1)
+                players.splice(index, 1);
+        }
+    }
+
+    const current = players.indexOf(turn);
+    if(current === players.length - 1)
+        return players[0];
+    else
+        return players[current+1];
+    
+}
+
+//Returns deck with played cards removed
+const removeCards = (deck, player, play) => {
+    const removed = deck[player];
+    for(var i = 0; i < play.length; i++){
+        removed.splice(removed.indexOf(play[i]), 1); 
+    }
+
+    return removed;
+}
 
 const Game = (props) => {
 
-    const [gameStart, setGameStart] = useState(false);
     const [room, setRoom] = useState();
-    const [player, setPlayer] = useState();
-    const [users, setUsers] = useState([]);
+    const [gameStart, setGameStart] = useState(false);
     const [gameOver, setGameOver] = useState(false);
-    const [player1Deck, setP1Deck] = useState([]);
-    const [player2Deck, setP2Deck] = useState([]);
-    const [player3Deck, setP3Deck] = useState([]);
-    const [player4Deck, setP4Deck] = useState([]);
+    const [users, setUsers] = useState([]);
+    const [player, setPlayer] = useState();
+    const [decks, setDecks] = useState([]);
+    const [currentBoard, setCurrentBoard] = useState([]);
+    const [currentTurn, setCurrentTurn] = useState('Player 1');
+    const [currentPlay, setCurrentPlay] = useState([]);
+    const [skipped, setSkipped] = useState([]);
 
-    //split these into different useEffects so we get less unneccesary console.logs!!!
-    
     useEffect(() => {
         socket.on('initGame', (data) => {
             setUsers(data.users);
@@ -46,46 +117,53 @@ const Game = (props) => {
         });
 
         socket.on('init-game', (data) => {
-            setP1Deck(data.p1);
-            setP2Deck(data.p2);
-            setP3Deck(data.p3);
-            setP4Deck(data.p4);
+            setDecks([data.p1, data.p2, data.p3, data.p4]);
             setGameStart(true);
         });
-
     }, []);
-    
-    //Put your functions to do validation and such here
-    ////////////////////////////////////////////////////
-    if(gameStart){
 
-    let deck = [];
-    const num = player.charAt(7);
+    useEffect(() => {
+        socket.on('updateGame', (data) => {
+            setCurrentTurn(getNext(data.turn, data.skip));
+            if(data.play.length === 0)
+                setSkipped([...data.skip, data.turn]);
+            else{
+                setCurrentBoard(data.play);
+                setCurrentPlay([]);
+                const index = getDeck(data.turn);
+                const removed = removeCards(data.deck, index, data.play);
+                console.log(removed)
+                setDecks(prevDecks => {
+                    return [...prevDecks.slice(0,index), removed, ...prevDecks.slice(index+1,prevDecks.length)];
+                });
+            }
+        });
+    },[])
     
-    switch (num){
-        case '1': 
-            deck = player1Deck;
-            break;
-        case '2': 
-            deck = player2Deck;
-            break;
-        case '3':
-            deck = player3Deck;
-            break;
-        case '4': 
-            deck = player4Deck;
-            break;
-    }
+    if(gameStart){
+        const deck = decks[getDeck(player)];
 
         return(
-            <div>
+            <div className='board'>
+                <div className='play'>{
+                    currentBoard.map((value, idx) =>
+                        <h1 className='cards' key={idx}>{value}</h1> 
+                    )}
+                </div>
+                <div className='hand'>
                 {
-                    deck.map((value, idx) => (
-                        <button className='boi' key={idx}>{value}</button>
-                    ))
+                    deck.map((value, idx) => 
+                        <h1 className='cards' key={idx} onClick={()=>setCurrentPlay(handlePlay(value, currentPlay))}>{value}</h1>
+                    )
                 }
+                            <button onClick={() => 
+                                socket.emit('updateGame', {skip: skipped, deck: decks, turn: currentTurn, play: currentPlay})
+                            }>Submit</button>
+                            <button onClick={() =>
+                                socket.emit('updateGame', {skip: skipped, deck: decks, turn: currentTurn, play: currentPlay}) 
+                            }>Skip</button>
+                                </div>
             </div>
-
         );
     }
     else{
@@ -97,8 +175,10 @@ const Game = (props) => {
             </div>
         );
     }
-}
+}/////////////////////////////////////////////////////////////////////
 
+
+//Functions for Displays
 function Player1(){
     return(
         <div>

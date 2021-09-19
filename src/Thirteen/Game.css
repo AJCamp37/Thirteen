@@ -1,6 +1,33 @@
 .game{
     background-color: purple;
 }
-.bois{
-    background-color:purple;
+.cards{
+    border: 1px solid black;
+    border-radius: 2px;
+    padding: 8px;
+    margin-bottom: 8px;
+}
+.hand{
+    margin: 8px;
+    border: 1px solid purple;
+    border-radius: 2px;
+    padding: 8px;
+}
+.board{
+    margin: 8px;
+    border: 1px solid black;
+    border-radius: 2px;
+    padding: 8px;
+}
+.play{
+    margin: 8px;
+    border: 1px solid black;
+    border-radius: 2px;
+    padding: 8px;
+    width: 1000px;
+    height: 500px;
+    display: inline-block;
+}
+h1{
+    display: inline-block;
 }
