@@ -46,8 +46,9 @@ const getDeck = (playerName) => {
 
 //Return the player whose turn is next
 ///This will not work if there aren't 4 players need to fix it////////
-const getNext = (turn, skip) => {
+const getNext = (length, turn, skip) => {
     const players = ['Player 1', 'Player 2', 'Player 3', 'Player 4'];
+    players.splice(length,players.length);
     if(skip.length !== 0){
         var index;
         for(var i = 0; i < players.length; i++){
@@ -124,7 +125,7 @@ const Game = (props) => {
 
     useEffect(() => {
         socket.on('updateGame', (data) => {
-            setCurrentTurn(getNext(data.turn, data.skip));
+            setCurrentTurn(getNext(data.length, data.turn, data.skip));
             if(data.play.length === 0)
                 setSkipped([...data.skip, data.turn]);
             else{
@@ -156,11 +157,11 @@ const Game = (props) => {
                         <h1 className='cards' key={idx} onClick={()=>setCurrentPlay(handlePlay(value, currentPlay))}>{value}</h1>
                     )
                 }
-                            <button onClick={() => 
-                                socket.emit('updateGame', {skip: skipped, deck: decks, turn: currentTurn, play: currentPlay})
+                            <button disabled={currentTurn !== player} onClick={() => 
+                                socket.emit('updateGame', {length: users.length, skip: skipped, deck: decks, turn: currentTurn, play: currentPlay})
                             }>Submit</button>
-                            <button onClick={() =>
-                                socket.emit('updateGame', {skip: skipped, deck: decks, turn: currentTurn, play: currentPlay}) 
+                            <button disabled={currentTurn !== player} onClick={() =>
+                                socket.emit('updateGame', {length: users.length, skip: skipped, deck: decks, turn: currentTurn, play: currentPlay}) 
                             }>Skip</button>
                                 </div>
             </div>
