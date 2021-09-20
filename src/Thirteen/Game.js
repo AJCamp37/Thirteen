@@ -45,7 +45,6 @@ const getDeck = (playerName) => {
 }
 
 //Return the player whose turn is next
-///This will not work if there aren't 4 players need to fix it////////
 const getNext = (length, turn, skip) => {
     const players = ['Player 1', 'Player 2', 'Player 3', 'Player 4'];
     players.splice(length,players.length);
@@ -59,10 +58,17 @@ const getNext = (length, turn, skip) => {
     }
 
     const current = players.indexOf(turn);
+    var answer;
     if(current === players.length - 1)
-        return players[0];
+        answer = players[0];
     else
-        return players[current+1];
+        answer = players[current+1];
+
+    
+    if(length-1 === players.length)
+        return {player: answer, error: true};
+    else
+        return {player: answer, error: false};
     
 }
 
@@ -76,11 +82,119 @@ const removeCards = (deck, player, play) => {
     return removed;
 }
 
+//Gives the value for a card
+const getValue = card => {
+    var suit = card.charAt(0);
+    var value;
+    switch(suit){
+        case 'S':
+            value = 0;
+            break;
+        case 'C':
+            value = 0.25;
+            break;
+        case 'D':
+            value = 0.50;
+            break;
+        case 'H':
+            value = 0.75;
+            break;
+    }
+
+    if(isNaN(Number(card.charAt(1)))){
+        switch(card.charAt(1)){
+            case 'T':
+                value += 10;
+                break;
+            case 'J':
+                value += 11;
+                break;
+            case 'Q':
+                value += 12;
+                break;
+            case 'K':
+                value += 13;
+                break;
+            case 'A':
+                value += 14;
+                break;
+        }
+    }
+    else if(card.charAt(1) === '2')
+        value+= 15;
+    else
+        value += Number(card.charAt(1));
+    
+    return value;
+}
+
+//Returns the type of play
+//////////////////incomplete///////////////////////
+const playType = play => {
+    const length = play.length;
+    var temp;
+
+    if(length === 1)
+        return 'single';
+
+    temp = play[0][1];
+    
+    if(length === 2){
+        if(play.every((curr) => curr[1] === temp))
+            return 'double';
+        else
+            return 'invalid';
+    }
+    else if(length === 3 && play.every((curr) => curr[1] === temp))
+        return 'triple';
+    else if(length === 4 && play.every((curr) => curr[1] === temp))
+        return '4-of-kind';
+    else{
+        for(let i = 0; i < play.length-1; i++){
+            if(Math.floor(getValue(play[i+1])) !== (Math.floor(getValue(play[i]))+1)){
+            console.log('here')
+
+                return 'invalid';
+            }
+        }
+       return 'straight';
+    }
+}
+
+//Return the play in sorted order
+const sortPlay = play => {
+    return play.sort((a, b) => getValue(a) - getValue(b));
+}
+
+//Validates a player's move
+const validate = (prevPlay, attemptedPlay) => {
+    attemptedPlay = sortPlay(attemptedPlay);
+    if(prevPlay.length === 0){
+        if(playType(attemptedPlay) === 'invalid')
+            return false;
+    }
+    else{
+        const prevType = playType(prevPlay);
+        if(prevType !== playType(attemptedPlay))
+            return false;
+        else{
+            if(prevPlay.length !== attemptedPlay.length)
+                return false;
+            else{
+                if(getValue(prevPlay[prevPlay.length-1]) > getValue(attemptedPlay[attemptedPlay.length-1]))
+                    return false;
+            }
+        }
+    }
+    return true;
+}
+
 const Game = (props) => {
 
     const [room, setRoom] = useState();
     const [gameStart, setGameStart] = useState(false);
     const [gameOver, setGameOver] = useState(false);
+    const [winners, setWinners] = useState([]);
     const [users, setUsers] = useState([]);
     const [player, setPlayer] = useState();
     const [decks, setDecks] = useState([]);
@@ -125,19 +239,28 @@ const Game = (props) => {
 
     useEffect(() => {
         socket.on('updateGame', (data) => {
-            setCurrentTurn(getNext(data.length, data.turn, data.skip));
+            if(winners.length === users.length-1)
+                setGameOver(true);
             if(data.play.length === 0)
                 setSkipped([...data.skip, data.turn]);
-            else{
-                setCurrentBoard(data.play);
-                setCurrentPlay([]);
-                const index = getDeck(data.turn);
-                const removed = removeCards(data.deck, index, data.play);
-                console.log(removed)
-                setDecks(prevDecks => {
-                    return [...prevDecks.slice(0,index), removed, ...prevDecks.slice(index+1,prevDecks.length)];
-                });
+
+            const next = getNext(data.length, data.turn, skipped);
+            if(next.error){
+                console.log('everyone skipped')
+                setCurrentBoard([]);
+                setSkipped([]);
             }
+            else{
+                setCurrentBoard(sortPlay(data.play));
+            }
+            setCurrentTurn(next.player);
+            setCurrentPlay([]);
+            const index = getDeck(data.turn);
+            const removed = removeCards(data.deck, index, data.play);
+            console.log(removed)
+            setDecks(prevDecks => {
+                return [...prevDecks.slice(0,index), removed, ...prevDecks.slice(index+1,prevDecks.length)];
+            });
         });
     },[])
     
@@ -157,9 +280,14 @@ const Game = (props) => {
                         <h1 className='cards' key={idx} onClick={()=>setCurrentPlay(handlePlay(value, currentPlay))}>{value}</h1>
                     )
                 }
-                            <button disabled={currentTurn !== player} onClick={() => 
-                                socket.emit('updateGame', {length: users.length, skip: skipped, deck: decks, turn: currentTurn, play: currentPlay})
-                            }>Submit</button>
+                            <button disabled={currentTurn !== player} onClick={() =>{
+                                if(validate(currentBoard, currentPlay)) 
+                                    socket.emit('updateGame', {length: users.length, skip: skipped, deck: decks, turn: currentTurn, play: currentPlay}) 
+                                else{
+                                    alert('Your move is invalid, please play something different');
+                                    setCurrentPlay([]);
+                                }
+                            }}>Submit</button>
                             <button disabled={currentTurn !== player} onClick={() =>
                                 socket.emit('updateGame', {length: users.length, skip: skipped, deck: decks, turn: currentTurn, play: currentPlay}) 
                             }>Skip</button>
