@@ -271,13 +271,13 @@ const Game = (props) => {
             <div className='board'>
                 <div className='play'>{
                     currentBoard.map((value, idx) =>
-                        <h1 className='cards' key={idx}>{value}</h1> 
+                        <img className='cards' key={idx} src={require(`../assets/cards/${value}.png`).default}/> 
                     )}
                 </div>
                 <div className='hand'>
                 {
                     deck.map((value, idx) => 
-                        <h1 className='cards' key={idx} onClick={()=>setCurrentPlay(handlePlay(value, currentPlay))}>{value}</h1>
+                        <img className='cards' key={idx} onClick={()=>setCurrentPlay(handlePlay(value, currentPlay))} src={require(`../assets/cards/${value}.png`).default}/>
                     )
                 }
                             <button disabled={currentTurn !== player} onClick={() =>{
