@@ -1,4 +1,4 @@
-import {DragDropContext, Droppable, Draggable} from 'react-beautiful-dnd';
+//import {DragDropContext, Droppable, Draggable} from 'react-beautiful-dnd';
 import { useEffect, useState }from 'react';
 import { socket } from './Thirteen';
 import shuffle from '../utils/shuffle';
@@ -47,7 +47,9 @@ const getDeck = (playerName) => {
 //Return the player whose turn is next
 const getNext = (length, turn, skip) => {
     const players = ['Player 1', 'Player 2', 'Player 3', 'Player 4'];
+
     players.splice(length,players.length);
+
     if(skip.length !== 0){
         var index;
         for(var i = 0; i < players.length; i++){
@@ -64,12 +66,10 @@ const getNext = (length, turn, skip) => {
     else
         answer = players[current+1];
 
-    
-    if(length-1 === players.length)
+    if(players.length === 0)
         return {player: answer, error: true};
     else
         return {player: answer, error: false};
-    
 }
 
 //Returns deck with played cards removed
@@ -129,7 +129,6 @@ const getValue = card => {
 }
 
 //Returns the type of play
-//////////////////incomplete///////////////////////
 const playType = play => {
     const length = play.length;
     var temp;
@@ -189,6 +188,31 @@ const validate = (prevPlay, attemptedPlay) => {
     return true;
 }
 
+//Returns the player that should go first
+const firstTurn = (users, decks) => {
+    console.log(users)
+    if(users === 4){
+        for(var i = 0; i < decks.length; i++){
+            if(decks[i].indexOf('S3') !== -1){
+                console.log(i)
+                return `Player ${i+1}`;
+            }
+        }
+    }
+    else{
+        var lowest = {val: 15.75, index: 0};
+        for(var i = 0; i < users; i++){
+            const mapped = decks[i].map(x => getValue(x));
+            const min = Math.min(...mapped);
+            if(min < lowest.val){
+                lowest.val = min;
+                lowest.index = i;
+            }
+        }
+        return `Player ${lowest.index+1}`;
+    }
+}
+
 const Game = (props) => {
 
     const [room, setRoom] = useState();
@@ -199,7 +223,7 @@ const Game = (props) => {
     const [player, setPlayer] = useState();
     const [decks, setDecks] = useState([]);
     const [currentBoard, setCurrentBoard] = useState([]);
-    const [currentTurn, setCurrentTurn] = useState('Player 1');
+    const [currentTurn, setCurrentTurn] = useState();
     const [currentPlay, setCurrentPlay] = useState([]);
     const [skipped, setSkipped] = useState([]);
 
@@ -227,12 +251,13 @@ const Game = (props) => {
                 const p3 = shuffledCards.splice(0,13);
                 const p4 = shuffledCards.splice(0,13);
 
-                socket.emit('init-data', {p1: p1, p2: p2, p3: p3, p4: p4});
+                socket.emit('init-data', {users: users.length, p1: p1, p2: p2, p3: p3, p4: p4});
             }
         });
 
         socket.on('init-game', (data) => {
             setDecks([data.p1, data.p2, data.p3, data.p4]);
+            setCurrentTurn(firstTurn(data.users, [data.p1, data.p2, data.p3, data.p4]));
             setGameStart(true);
         });
     }, []);
@@ -241,18 +266,23 @@ const Game = (props) => {
         socket.on('updateGame', (data) => {
             if(winners.length === users.length-1)
                 setGameOver(true);
-            if(data.play.length === 0)
+            let next;
+            if(data.play.length === 0){
+                next = getNext(data.length, data.turn, [...data.skip, data.turn]);
                 setSkipped([...data.skip, data.turn]);
-
-            const next = getNext(data.length, data.turn, skipped);
+            }
+            else{
+                next = getNext(data.length, data.turn, data.skip);
+                setCurrentBoard(sortPlay(data.play));
+            }
+            //something wrong around here, when one person skips it clears the board instead of 
+            //keeping the board and not adding anything new
             if(next.error){
                 console.log('everyone skipped')
                 setCurrentBoard([]);
                 setSkipped([]);
             }
-            else{
-                setCurrentBoard(sortPlay(data.play));
-            }
+
             setCurrentTurn(next.player);
             setCurrentPlay([]);
             const index = getDeck(data.turn);
@@ -289,7 +319,7 @@ const Game = (props) => {
                                 }
                             }}>Submit</button>
                             <button disabled={currentTurn !== player} onClick={() =>
-                                socket.emit('updateGame', {length: users.length, skip: skipped, deck: decks, turn: currentTurn, play: currentPlay}) 
+                                socket.emit('updateGame', {length: users.length, skip: skipped, deck: decks, turn: currentTurn, play: []}) 
                             }>Skip</button>
                                 </div>
             </div>
