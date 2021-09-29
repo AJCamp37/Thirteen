@@ -29,76 +29,36 @@ const handlePlay = (card, play, idx) => {
 
 //Returns the index for the player's deck
 const getDeck = (playerName) => {
-    var value;
-    const num = playerName.charAt(7);
-    
-    switch (num){
-        case '1': 
-            value = 0;
-            break;
-        case '2': 
-            value = 1;
-            break;
-        case '3':
-            value = 2;
-            break;
-        case '4': 
-            value = 3;
-            break;
-    }               
-    return value;
+    return Number(playerName.charAt(7))-1;
 }
 
 //Return the player whose turn is next
-const getNext = (length, turn, skip, round) => {
-    //Potential players
-    const players = ['Player 1', 'Player 2', 'Player 3', 'Player 4'];
-
-
-    console.log( skip)
-    //Make players contain only the amount of users
-    players.splice(length,players.length);
-
-    const before = players.indexOf(turn);
-    console.log('before' + before)
-    //If someone has skipped remove them from potential players
-    if(skip.length !== 0){
-        var index;
-        for(let i = 0; i < players.length; i++){
-            console.log(`i: ${i}`)
-            index = skip.indexOf(players[i]);
-            
-            if(index !== -1){
-                console.log(`found ${players[i]}`)
-                players.splice(i, 1);
-            }
-        }
-    }
-    const current = players.indexOf(turn);
-    console.log('current' + current)
-    
-    console.log('current player ' + turn )
-    console.log('remaining players ' + players)
+const getNext = (length, turn, round, lastPlayed) => {
     //Next player
     var answer;
+    
+    if(round.length === 1 && round[0] === turn)
+        return {player: lastPlayed, error: true};
 
-    if(players.length === 0)
-        return {player: round[round.length-1], error: true};
+    const before = round.indexOf(turn);
 
-    if(current === -1){
-        if(before === players.length)
-            answer = players[0];
-        else
-            answer = players[before];
-    }
-    else{
-        if(current === players.length - 1)
-            answer = players[0];
-        else if(players.indexOf(turn) === -1)
-            answer = players[current];
-        else
-            answer = players[current+1];
-    }
+    if(before === round.length-1){
+        answer = round[0];
+    }/*
+    else if(before === -1){
+        var num = Number(turn.charAt(7));
+        while(round.indexOf(`Player ${num}`) === -1){
+            if(num > 4){
+                num = 1;
+            }
+            num++;
+        }
+        answer = `Player ${num}`;
+    }*/
+    else
+        answer = round[before+1];
+
+    console.log(answer)
     return {player: answer, error: false};
 }
 
@@ -109,7 +69,10 @@ const removeCards = (deck, player, play) => {
         removed.splice(removed.indexOf(play[i]), 1); 
     }
 
-    return removed;
+    if(removed.length === 0)
+        return {cards: removed, error: true};
+    else
+        return {cards: removed, error: false};
 }
 
 //Gives the value for a card
@@ -220,7 +183,6 @@ const validate = (prevPlay, attemptedPlay) => {
 
 //Returns the player that should go first
 const firstTurn = (users, decks) => {
-    console.log(users)
     if(users === 4){
         for(let i = 0; i < decks.length; i++){
             if(decks[i].indexOf('S3') !== -1){
@@ -255,8 +217,8 @@ const Game = (props) => {
     const [currentBoard, setCurrentBoard] = useState([]);
     const [currentTurn, setCurrentTurn] = useState();
     const [currentPlay, setCurrentPlay] = useState([]);
-    const [skipped, setSkipped] = useState([]);
     const [round, setRound] = useState([]);
+    const [currentRound, setCurrentRound] = useState([]);
     const [played, setPlayed] = useState();
 
     useEffect(() => {
@@ -269,7 +231,9 @@ const Game = (props) => {
     useEffect(() => {
         socket.on('start-game', (users)=> {
             setUsers(users);
+            const array = [];
             for(let i = 0; i < users.length; i++){
+               array.push(`Player ${i+1}`);
                 if(socket.id === users[i].id){
                     setPlayer(users[i].name);
                 }
@@ -283,50 +247,56 @@ const Game = (props) => {
                 const p3 = shuffledCards.splice(0,13);
                 const p4 = shuffledCards.splice(0,13);
 
-                socket.emit('init-data', {users: users.length, p1: p1, p2: p2, p3: p3, p4: p4});
+                socket.emit('init-data', {users: users.length, p1: p1, p2: p2, p3: p3, p4: p4, round: array});
             }
         });
 
         socket.on('init-game', (data) => {
             setDecks([data.p1, data.p2, data.p3, data.p4]);
             setCurrentTurn(firstTurn(data.users, [data.p1, data.p2, data.p3, data.p4]));
+            setRound(data.round);
+            setCurrentRound(data.round);
             setGameStart(true);
         });
     }, []);
 
     useEffect(() => {
         socket.on('updateGame', (data) => {
-            if(getDeck(data.turn).length === 0){
-                setWinners([...winners, data.turn]);
-            }
-
-            if(winners.length === users.length-1)
+            if(data.winners.length === data.length-1){
+                console.log('gameover')
                 setGameOver(true);
+            }
             let next;
             if(data.play.length === 0){
-                next = getNext(data.length, data.turn, [...data.skip, data.turn], data.round);
-                setSkipped([...data.skip, data.turn]);
+                const skipper = data.currentRound.filter((item) => item != data.turn);
+                setCurrentRound(skipper);
+                next = getNext(data.length, data.turn, data.currentRound, data.lastPlayed);
+                console.log('removed a skipper')
             }
             else{
-                next = getNext(data.length, data.turn, data.skip, data.round);
+                setPlayed(data.turn);
+                next = getNext(data.length, data.turn, data.currentRound, data.turn);
                 setCurrentBoard(sortPlay(data.play));
-                setRound([...data.round, data.turn]);
             }
 
             if(next.error){
+                setCurrentRound(data.round);
                 console.log('everyone skipped')
                 setCurrentBoard([]);
-                setRound([]);
-                setSkipped([]);
             }
 
             setCurrentTurn(next.player);
             setCurrentPlay([]);
             const index = getDeck(data.turn);
             const removed = removeCards(data.deck, index, data.play);
-            console.log(removed)
+            if(removed.error){
+                setWinners(winners => { return [...winners, data.turn]});
+                setRound(data.round.filter((item) => item != data.turn));
+                setCurrentRound(data.currentRound.filter((item) => item != data.turn));
+                console.log('added a winner')
+            }
             setDecks(prevDecks => {
-                return [...prevDecks.slice(0,index), removed, ...prevDecks.slice(index+1,prevDecks.length)];
+                return [...prevDecks.slice(0,index), removed.cards, ...prevDecks.slice(index+1,prevDecks.length)];
             });
         });
     },[])
@@ -358,14 +328,14 @@ const Game = (props) => {
                     }
                                 <button disabled={currentTurn !== player} onClick={() =>{
                                     if(validate(currentBoard, currentPlay)) 
-                                        socket.emit('updateGame', {length: users.length, skip: skipped, deck: decks, turn: currentTurn, play: currentPlay, round: round}) 
+                                        socket.emit('updateGame', {length: users.length, deck: decks, turn: currentTurn, play: currentPlay, round: round, currentRound: currentRound, lastPlayed: played, winners: winners}) 
                                     else{
                                         alert('Your move is invalid, please play something different');
                                         setCurrentPlay([]);
                                     }
                                 }}>Submit</button>
                                 <button disabled={currentTurn !== player} onClick={() =>
-                                    socket.emit('updateGame', {length: users.length, skip: skipped, deck: decks, turn: currentTurn, play: [], round: round}) 
+                                    socket.emit('updateGame', {length: users.length, deck: decks, turn: currentTurn, play: [], round: round, currentRound: currentRound, lastPlayed: played, winners: winners}) 
                                 }>Skip</button>
                                     </div>
                 </div>
