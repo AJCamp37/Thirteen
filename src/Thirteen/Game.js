@@ -6,17 +6,22 @@ import cardDeck from '../utils/cardDeck';
 import './Game.css';
 
 //Returns an updated currentPlay array
-const handlePlay = (card, play) => {
+const handlePlay = (card, play, idx) => {
+    const image = document.getElementById(`card${idx}`);
+
     //If the array is empty
     if(play.length === 0){
+        image.src = require(`../assets/cards/black/${card}.png`).default;
         const temp = [card];
         return temp;
     }//If the card is already in the array
     else if(play.indexOf(card) !== -1){
+        image.src = require(`../assets/cards/white/${card}.png`).default;
         const index = play.indexOf(card);
         play.splice(index, 1);
     }//If the card is not already in the array
     else{
+        image.src = require(`../assets/cards/black/${card}.png`).default;
         play.push(card);
     }
     return play;
@@ -45,37 +50,62 @@ const getDeck = (playerName) => {
 }
 
 //Return the player whose turn is next
-const getNext = (length, turn, skip) => {
+const getNext = (length, turn, skip, round) => {
+    //Potential players
     const players = ['Player 1', 'Player 2', 'Player 3', 'Player 4'];
 
+
+    console.log( skip)
+    //Make players contain only the amount of users
     players.splice(length,players.length);
 
+    const before = players.indexOf(turn);
+    console.log('before' + before)
+    //If someone has skipped remove them from potential players
     if(skip.length !== 0){
         var index;
-        for(var i = 0; i < players.length; i++){
+        for(let i = 0; i < players.length; i++){
+            console.log(`i: ${i}`)
             index = skip.indexOf(players[i]);
-            if(index !== -1)
-                players.splice(index, 1);
+            
+            if(index !== -1){
+                console.log(`found ${players[i]}`)
+                players.splice(i, 1);
+            }
         }
     }
-
     const current = players.indexOf(turn);
+    console.log('current' + current)
+    
+    console.log('current player ' + turn )
+    console.log('remaining players ' + players)
+    //Next player
     var answer;
-    if(current === players.length - 1)
-        answer = players[0];
-    else
-        answer = players[current+1];
 
     if(players.length === 0)
-        return {player: answer, error: true};
-    else
-        return {player: answer, error: false};
+        return {player: round[round.length-1], error: true};
+
+    if(current === -1){
+        if(before === players.length)
+            answer = players[0];
+        else
+            answer = players[before];
+    }
+    else{
+        if(current === players.length - 1)
+            answer = players[0];
+        else if(players.indexOf(turn) === -1)
+            answer = players[current];
+        else
+            answer = players[current+1];
+    }
+    return {player: answer, error: false};
 }
 
 //Returns deck with played cards removed
 const removeCards = (deck, player, play) => {
     const removed = deck[player];
-    for(var i = 0; i < play.length; i++){
+    for(let i = 0; i < play.length; i++){
         removed.splice(removed.indexOf(play[i]), 1); 
     }
 
@@ -192,7 +222,7 @@ const validate = (prevPlay, attemptedPlay) => {
 const firstTurn = (users, decks) => {
     console.log(users)
     if(users === 4){
-        for(var i = 0; i < decks.length; i++){
+        for(let i = 0; i < decks.length; i++){
             if(decks[i].indexOf('S3') !== -1){
                 console.log(i)
                 return `Player ${i+1}`;
@@ -201,7 +231,7 @@ const firstTurn = (users, decks) => {
     }
     else{
         var lowest = {val: 15.75, index: 0};
-        for(var i = 0; i < users; i++){
+        for(let i = 0; i < users; i++){
             const mapped = decks[i].map(x => getValue(x));
             const min = Math.min(...mapped);
             if(min < lowest.val){
@@ -226,6 +256,8 @@ const Game = (props) => {
     const [currentTurn, setCurrentTurn] = useState();
     const [currentPlay, setCurrentPlay] = useState([]);
     const [skipped, setSkipped] = useState([]);
+    const [round, setRound] = useState([]);
+    const [played, setPlayed] = useState();
 
     useEffect(() => {
         socket.on('initGame', (data) => {
@@ -237,7 +269,7 @@ const Game = (props) => {
     useEffect(() => {
         socket.on('start-game', (users)=> {
             setUsers(users);
-            for(var i = 0; i < users.length; i++){
+            for(let i = 0; i < users.length; i++){
                 if(socket.id === users[i].id){
                     setPlayer(users[i].name);
                 }
@@ -264,22 +296,27 @@ const Game = (props) => {
 
     useEffect(() => {
         socket.on('updateGame', (data) => {
+            if(getDeck(data.turn).length === 0){
+                setWinners([...winners, data.turn]);
+            }
+
             if(winners.length === users.length-1)
                 setGameOver(true);
             let next;
             if(data.play.length === 0){
-                next = getNext(data.length, data.turn, [...data.skip, data.turn]);
+                next = getNext(data.length, data.turn, [...data.skip, data.turn], data.round);
                 setSkipped([...data.skip, data.turn]);
             }
             else{
-                next = getNext(data.length, data.turn, data.skip);
+                next = getNext(data.length, data.turn, data.skip, data.round);
                 setCurrentBoard(sortPlay(data.play));
+                setRound([...data.round, data.turn]);
             }
-            //something wrong around here, when one person skips it clears the board instead of 
-            //keeping the board and not adding anything new
+
             if(next.error){
                 console.log('everyone skipped')
                 setCurrentBoard([]);
+                setRound([]);
                 setSkipped([]);
             }
 
@@ -295,35 +332,45 @@ const Game = (props) => {
     },[])
     
     if(gameStart){
-        const deck = decks[getDeck(player)];
+        if(gameOver){
+            return(
+                <GameOver winners={winners}/>
+            );
+        }
+        else{
+            const deck = sortPlay(decks[getDeck(player)]);
 
-        return(
-            <div className='board'>
-                <div className='play'>{
-                    currentBoard.map((value, idx) =>
-                        <img className='cards' key={idx} src={require(`../assets/cards/${value}.png`).default}/> 
-                    )}
+            return(
+                <div className='board'>
+                    <div className='play'>{
+                        currentBoard.map((value, idx) =>
+                            <img className='cards' key={idx} src={require(`../assets/cards/white/${value}.png`).default}/> 
+                        )}
+                    </div>
+                    <div className='hand'>
+                    {
+                        deck.map((value, idx) => 
+                            <img className='cards' key={idx} id={'card'+idx} 
+                                disabled={currentTurn !== player} onClick={()=>
+                                setCurrentPlay(handlePlay(value, currentPlay, idx))
+                            } src={require(`../assets/cards/white/${value}.png`).default}/>
+                        )
+                    }
+                                <button disabled={currentTurn !== player} onClick={() =>{
+                                    if(validate(currentBoard, currentPlay)) 
+                                        socket.emit('updateGame', {length: users.length, skip: skipped, deck: decks, turn: currentTurn, play: currentPlay, round: round}) 
+                                    else{
+                                        alert('Your move is invalid, please play something different');
+                                        setCurrentPlay([]);
+                                    }
+                                }}>Submit</button>
+                                <button disabled={currentTurn !== player} onClick={() =>
+                                    socket.emit('updateGame', {length: users.length, skip: skipped, deck: decks, turn: currentTurn, play: [], round: round}) 
+                                }>Skip</button>
+                                    </div>
                 </div>
-                <div className='hand'>
-                {
-                    deck.map((value, idx) => 
-                        <img className='cards' key={idx} onClick={()=>setCurrentPlay(handlePlay(value, currentPlay))} src={require(`../assets/cards/${value}.png`).default}/>
-                    )
-                }
-                            <button disabled={currentTurn !== player} onClick={() =>{
-                                if(validate(currentBoard, currentPlay)) 
-                                    socket.emit('updateGame', {length: users.length, skip: skipped, deck: decks, turn: currentTurn, play: currentPlay}) 
-                                else{
-                                    alert('Your move is invalid, please play something different');
-                                    setCurrentPlay([]);
-                                }
-                            }}>Submit</button>
-                            <button disabled={currentTurn !== player} onClick={() =>
-                                socket.emit('updateGame', {length: users.length, skip: skipped, deck: decks, turn: currentTurn, play: []}) 
-                            }>Skip</button>
-                                </div>
-            </div>
-        );
+            );
+        }
     }
     else{
         return(
@@ -351,6 +398,15 @@ function Others(){
     return(
         <div>
             <h1>Waiting for more players</h1>
+        </div>
+    );
+}
+
+function GameOver(props){
+    return(
+        <div>
+            <h1>Game Over!</h1>
+            <h1>{props.winners[0]} Wins!</h1>
         </div>
     );
 }
